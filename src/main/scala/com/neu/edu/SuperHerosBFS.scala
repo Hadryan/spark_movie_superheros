@@ -16,10 +16,10 @@ object SuperHerosBFS {
   val startCharacterID = 5306 //SpiderMan
   val targetCharacterID = 14 //ADAM 3,031 (who?)
 
-  // We make our accumulator a "global" Option so we can reference it in a mapper later.
+  // Accumulator a "global" Option so we can reference it in a mapper later.
   var hitCounter:Option[LongAccumulator] = None
 
-  // Some custom data types
+  // Custom data types
   // BFSData contains an array of hero ID connections, the distance, and color.
   type BFSData = (Array[Int], Int, String)
   // A BFSNode has a heroID and the BFSData associated with it.
@@ -82,24 +82,24 @@ object SuperHerosBFS {
         val newDistance = distance + 1
         val newColor = "GRAY"
 
-        // Have we stumbled across the character we're looking for?
-        // If so increment our accumulator so the driver script knows.
+        // Found character we're looking for?
+        // If yes increment the accumulator so the driver script knows.
         if (targetCharacterID == connection) {
           if (hitCounter.isDefined) {
             hitCounter.get.add(1)
           }
         }
 
-        // Create our new Gray node for this connection and add it to the results
+        // Create  new Gray node for this connection and add it to the results
         val newEntry:BFSNode = (newCharacterID, (Array(), newDistance, newColor))
         results += newEntry
       }
 
-      // Color this node as black, indicating it has been processed already.
+      // Color the node as black, indicating it has been processed already.
       color = "BLACK"
     }
 
-    // Add the original node back in, so its connections can get merged with
+    // Add the original node back in, so that the connections can get merged with
     // the gray nodes in the reducer.
     val thisEntry:BFSNode = (characterID, (connections, distance, color))
     results += thisEntry
@@ -166,7 +166,7 @@ object SuperHerosBFS {
     // Create a SparkContext using every core of the local machine
     val sc = new SparkContext("local[*]", "SuperHerosBFS")
 
-    // Our accumulator, used to signal when we find the target
+    // Accumulator, used to signal when we find the target
     // character in our BFS traversal.
     hitCounter = Some(sc.longAccumulator("Hit Counter"))
 
@@ -177,12 +177,12 @@ object SuperHerosBFS {
       println("Running BFS Iteration# " + iteration)
 
       // Create new vertices as needed to darken or reduce distances in the
-      // reduce stage. If we encounter the node we're looking for as a GRAY
+      // reduce stage. If  the node we're looking for as a GRAY
       // node, increment our accumulator to signal that we're done.
       val mapped = iterationRdd.flatMap(bfsMap)
 
       // Note that mapped.count() action here forces the RDD to be evaluated, and
-      // that's the only reason our accumulator is actually updated.
+      // The only reason our accumulator is actually updated.
       println("Processing " + mapped.count() + " values.")
 
       if (hitCounter.isDefined) {
