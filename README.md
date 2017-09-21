@@ -4,7 +4,9 @@ Spark with Scala
 Objective:
 ----------
 To learn spark, sparksql and GraphX with scala by designing:
-1. Movie recommender system for movie lens 100k Dataset
-2. Popular movies list of movie lens 100k Dataset
-3. Marvel Superheros friends connection for 20,000 character, using Breath First Search algorithm 
-4. Spark Graphx to find degree of sepration between superheros and identify most famous marvel superhero
+•	Movie recommender system for movie lens 100k Dataset
+•	Popular movies list of movie lens 100k Dataset
+•	Marvel Superheros friends connection for 20,000 characters, using Breath First Search algorithm
+•	Spark Graphx to find degree of separation between superheroes and identify most famous Marvel superhero
+
+Technologies used: Scala, spark, sparksql, Graphx
