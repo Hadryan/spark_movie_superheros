@@ -1,46 +1,46 @@
-package com.neu.edu.movieLennce
+package com.neu.edu
 
-import java.nio.charset.CodingErrorAction
-
-import org.apache.log4j.{Level, Logger}
 import org.apache.spark._
-import org.apache.spark.SparkContext._
-import scala.io.Codec
+
+import org.apache.log4j._
 import scala.io.Source
+import java.nio.charset.CodingErrorAction
+import scala.io.Codec
 import scala.math.sqrt
+
+
+// To run on EMR successfully + output results for Star Wars:
+// aws s3 cp s3://tushar-spark/MovieSimilarities1M.jar ./
+// aws s3 cp s3://tushar-spark/ml-1m/movies.dat ./
+// spark-submit --executor-memory 1g MovieSimilarities1M.jar 260
+
+
 object MovieLens1M {
 
+  /** Load up a Map of movie IDs to movie names. */
   def loadMovieNames() : Map[Int, String] = {
+
+    // Handle character encoding issues:
     implicit val codec = Codec("UTF-8")
     codec.onMalformedInput(CodingErrorAction.REPLACE)
     codec.onUnmappableCharacter(CodingErrorAction.REPLACE)
 
-    var movieNames:Map[Int,String]=Map()
+    // Create a Map of Ints to Strings, and populate it from u.item.
+    var movieNames:Map[Int, String] = Map()
 
-    val lines=Source.fromFile("./ml-1m/movies.dat").getLines()
-    for(line<-lines)
-      {
-        var fields=line.split("::")
-        if(fields.length>1)
-          {
-            movieNames+=(fields(0).toInt->fields(1))
-
-          }
+    val lines = Source.fromFile("movies.dat").getLines()
+    for (line <- lines) {
+      var fields = line.split("::")
+      if (fields.length > 1) {
+        movieNames += (fields(0).toInt -> fields(1))
       }
+    }
+
     return movieNames
   }
-  type MovieRating=(Int,Double)
-  type UserRatingPair=(Int, (MovieRating, MovieRating))
 
-  def filterDuplicates(userRatingPair: UserRatingPair):Boolean={
-    val movieRating1 = userRatingPair._2._1
-    val movieRating2 = userRatingPair._2._2
-
-    val movie1 = movieRating1._1
-    val movie2 = movieRating2._1
-
-    return movie1 < movie2
-  }
+  type MovieRating = (Int, Double)
+  type UserRatingPair = (Int, (MovieRating, MovieRating))
   def makePairs(userRatings:UserRatingPair) = {
     val movieRating1 = userRatings._2._1
     val movieRating2 = userRatings._2._2
@@ -53,9 +53,18 @@ object MovieLens1M {
     ((movie1, movie2), (rating1, rating2))
   }
 
+  def filterDuplicates(userRatings:UserRatingPair):Boolean = {
+    val movieRating1 = userRatings._2._1
+    val movieRating2 = userRatings._2._2
+
+    val movie1 = movieRating1._1
+    val movie2 = movieRating2._1
+
+    return movie1 < movie2
+  }
+
   type RatingPair = (Double, Double)
   type RatingPairs = Iterable[RatingPair]
-
 
   def computeCosineSimilarity(ratingPairs:RatingPairs): (Double, Int) = {
     var numPairs:Int = 0
@@ -84,30 +93,43 @@ object MovieLens1M {
     return (score, numPairs)
   }
 
-  def main(args:Array[String]): Unit =
-  {
+  /** Our main function where the action happens */
+  def main(args: Array[String]) {
+
+    // Set the log level to only print errors
     Logger.getLogger("org").setLevel(Level.ERROR)
-    val sc = new SparkContext("local[*]","MovieLens1M")
-   // val conf = new SparkConf()
-   // conf.setAppName("MovieLens1M")
-   // val sc = new SparkContext(conf)
+
+    // Create a SparkContext without much actual configuration
+    // We want EMR's config defaults to be used.
+  //   val sc = new SparkContext("local[*]", "MovieSimilarities") // to run locally
+
+    val conf = new SparkConf()
+    conf.setAppName("MovieLens1M")
+    val sc = new SparkContext(conf)
+
     println("\nLoading movie names...")
     val nameDict = loadMovieNames()
 
+    val data = sc.textFile("s3n://tushar-spark/ml-1m/ratings.dat")
 
-    val data = sc.textFile("./ml-1m/ratings.dat")
-
+    // Map ratings to key / value pairs: user ID => movie ID, rating
     val ratings = data.map(l => l.split("::")).map(l => (l(0).toInt, (l(1).toInt, l(2).toDouble)))
+
 
     val joinedRatings = ratings.join(ratings)
 
     val uniqueJoinedRatings = joinedRatings.filter(filterDuplicates)
 
+
     val moviePairs = uniqueJoinedRatings.map(makePairs).partitionBy(new HashPartitioner(100))
+
 
     val moviePairRatings = moviePairs.groupByKey()
 
+
     val moviePairSimilarities = moviePairRatings.mapValues(computeCosineSimilarity).cache()
+
+
 
     if (args.length > 0) {
       val scoreThreshold = 0.97
@@ -115,8 +137,6 @@ object MovieLens1M {
 
       val movieID:Int = args(0).toInt
 
-      // Filter for movies with this sim that are "good" as defined by
-      // our quality thresholds above
 
       val filteredResults = moviePairSimilarities.filter( x =>
       {
@@ -125,6 +145,8 @@ object MovieLens1M {
         (pair._1 == movieID || pair._2 == movieID) && sim._1 > scoreThreshold && sim._2 > coOccurenceThreshold
       }
       )
+
+      // Sort by quality score.
       val results = filteredResults.map( x => (x._2, x._1)).sortByKey(false).take(50)
 
       println("\nTop 50 similar movies for " + nameDict(movieID))
@@ -137,9 +159,7 @@ object MovieLens1M {
           similarMovieID = pair._2
         }
         println(nameDict(similarMovieID) + "\tscore: " + sim._1 + "\tstrength: " + sim._2)
-
       }
     }
-
-    }
+  }
 }
